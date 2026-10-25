@@ -1,62 +1,290 @@
-async function sendMessage(){
-  if(busy)return;
+(() => {
+  const $ = id => document.getElementById(id);
+  const CHAT_ENDPOINT = "https://gemelo-digital-estrategico.vercel.app/api/chat";
+  const STORAGE_TASKS = 'gemeloDigital.tasks.v1';
+  const STORAGE_CONTEXT = 'gemeloDigital.context.v1';
 
-  const message=$('chatInput').value.trim();
-  if(!message)return;
+  let tasks = [];
+  let history = [];
+  let busy = false;
 
-  busy=true;
-  $('sendChat').disabled=true;
-  $('chatStatus').textContent='Gemini está preparando una respuesta…';
+  const systemInstruction = `Eres un agente de IA para dirección estratégica, gestión de proyectos y marketing estratégico. Actúas como asesor ejecutivo y coordinador analítico. Ayudas a centralizar contexto, estructurar reuniones, redactar actas, convertir acuerdos en tareas, detectar riesgos, definir KPI y apoyar decisiones. Habla en español claro, profesional, directo y cercano. Separa hechos proporcionados, inferencias y recomendaciones. Nunca inventes cifras, fuentes, decisiones, responsables, fechas ni datos. Si falta información, dilo y pregunta lo mínimo necesario. Para KPI incluye definición, fórmula, fuente de datos y frecuencia cuando aplique. No afirmes tener acceso a archivos, reuniones, correo, calendario o sistemas que no se hayan conectado explícitamente. Protege datos confidenciales.`;
 
-  addBubble('user',message);
-  $('chatInput').value='';
-  history.push({role:'user',parts:[{text:message}]});
-  const wait=addBubble('ai','Analizando…');
-
-  try{
-    const conversation=history.map(item=>{
-      const role=item.role==='model'?'AGENTE':'USUARIO';
-      const text=(item.parts||[]).map(part=>part.text||'').join('\n');
-      return role+': '+text;
-    }).join('\n\n');
-
-    const prompt=systemInstruction+'\n\n'+contextText()+
-      '\n\nHISTORIAL DE CONVERSACIÓN:\n'+conversation+
-      '\n\nResponde a la última consulta del usuario.';
-
-    const response=await fetch(
-      'https://gemelo-digital-estrategico.vercel.app/api/chat',
-      {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({prompt})
-      }
-    );
-
-    const data=await response.json();
-
-    if(!response.ok){
-      throw new Error(data?.error||`Error HTTP ${response.status}`);
+  function readTasks() {
+    try {
+      tasks = JSON.parse(localStorage.getItem(STORAGE_TASKS) || '[]');
+    } catch {
+      tasks = [];
     }
-
-    const answer=typeof data.text==='string'?data.text.trim():'';
-
-    if(!answer){
-      throw new Error('El servidor no devolvió texto.');
-    }
-
-    wait.textContent=answer;
-    history.push({role:'model',parts:[{text:answer}]});
-    $('chatStatus').textContent='Respuesta recibida.';
-
-  }catch(err){
-    wait.textContent='No se pudo conectar: '+err.message;
-    history.pop();
-    $('chatStatus').textContent='Conexión no completada.';
-
-  }finally{
-    busy=false;
-    $('sendChat').disabled=false;
-    $('chatInput').focus();
+    renderTasks();
   }
-}
+
+  function persistTasks() {
+    localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
+    renderTasks();
+  }
+
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;',
+      '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function renderTasks() {
+    const list = $('taskList');
+    list.innerHTML = '';
+
+    if (!tasks.length) {
+      list.innerHTML = '<div class="empty">Aún no hay tareas. Añade el primer compromiso del proyecto.</div>';
+    }
+
+    tasks.forEach(t => {
+      const el = document.createElement('div');
+      el.className = 'task' + (t.done ? ' done' : '');
+      el.innerHTML = `
+        <input type="checkbox" aria-label="Marcar tarea completada" ${t.done ? 'checked' : ''}>
+        <div>
+          <div class="task-title">${esc(t.title)}</div>
+          <div class="task-meta">
+            <span class="pill">${esc(t.owner || 'Sin responsable')}</span>
+            <span class="pill ${t.priority === 'Alta' ? 'high' : ''}">${esc(t.priority)}</span>
+            <span class="pill ${t.done ? 'done' : ''}">${t.done ? 'Completada' : esc(t.status || 'Pendiente')}</span>
+            ${t.due ? `<span class="pill">Vence: ${esc(t.due)}</span>` : ''}
+          </div>
+        </div>
+        <button class="delete" title="Eliminar tarea" aria-label="Eliminar tarea">×</button>
+      `;
+
+      el.querySelector('input').addEventListener('change', e => {
+        t.done = e.target.checked;
+        t.status = t.done ? 'Completada' : 'Pendiente';
+        persistTasks();
+      });
+
+      el.querySelector('button').addEventListener('click', () => {
+        tasks = tasks.filter(x => x.id !== t.id);
+        persistTasks();
+      });
+
+      list.appendChild(el);
+    });
+
+    const total = tasks.length;
+    const done = tasks.filter(t => t.done).length;
+    $('totalTasks').textContent = total;
+    $('pendingTasks').textContent = total - done;
+    $('doneTasks').textContent = done;
+    $('progress').textContent = (total ? Math.round(done / total * 100) : 0) + '%';
+  }
+
+  function getContext() {
+    return {
+      project: $('projectName').value.trim(),
+      owner: $('projectOwner').value.trim(),
+      goal: $('projectGoal').value.trim(),
+      deadline: $('projectDeadline').value,
+      notes: $('projectNotes').value.trim()
+    };
+  }
+
+  function contextText() {
+    const c = getContext();
+    return `CONTEXTO DEL PROYECTO
+Proyecto/cliente: ${c.project || 'No indicado'}
+Responsable principal: ${c.owner || 'No indicado'}
+Objetivo: ${c.goal || 'No indicado'}
+Fecha límite: ${c.deadline || 'No indicada'}
+Notas y acuerdos:
+${c.notes || 'No compartidos'}
+
+TAREAS REGISTRADAS:
+${tasks.length ? tasks.map(t =>
+  `- [${t.done ? 'Completada' : t.status || 'Pendiente'}] ${t.title}; responsable: ${t.owner || 'no indicado'}; prioridad: ${t.priority}; fecha: ${t.due || 'no indicada'}`
+).join('\n') : 'No hay tareas registradas.'}`;
+  }
+
+  function setContext(c) {
+    $('projectName').value = c.project || '';
+    $('projectOwner').value = c.owner || '';
+    $('projectGoal').value = c.goal || '';
+    $('projectDeadline').value = c.deadline || '';
+    $('projectNotes').value = c.notes || '';
+  }
+
+  try {
+    const c = JSON.parse(localStorage.getItem(STORAGE_CONTEXT) || 'null');
+    if (c) setContext(c);
+  } catch {}
+
+  readTasks();
+
+  $('saveContext').onclick = () => {
+    localStorage.setItem(STORAGE_CONTEXT, JSON.stringify(getContext()));
+    $('contextStatus').textContent = 'Contexto guardado en este navegador.';
+  };
+
+  $('clearContext').onclick = () => {
+    setContext({});
+    localStorage.removeItem(STORAGE_CONTEXT);
+    $('contextStatus').textContent = 'Contexto limpiado.';
+  };
+
+  $('sendContext').onclick = () => {
+    $('chatInput').value =
+      'Analiza el siguiente contexto y entrega resumen ejecutivo, decisiones pendientes, riesgos y próximos pasos. No inventes datos.\n\n' +
+      contextText();
+    sendMessage();
+  };
+
+  $('exportContext').onclick = () => {
+    download('contexto_proyecto.txt', contextText(), 'text/plain;charset=utf-8');
+  };
+
+  $('addTask').onclick = () => {
+    const title = $('taskTitle').value.trim();
+    if (!title) {
+      $('taskTitle').focus();
+      return;
+    }
+
+    tasks.unshift({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      title,
+      owner: $('taskOwner').value.trim(),
+      due: $('taskDue').value,
+      priority: $('taskPriority').value,
+      status: $('taskStatus').value,
+      done: false
+    });
+
+    persistTasks();
+    $('taskTitle').value = '';
+    $('taskOwner').value = '';
+    $('taskDue').value = '';
+    $('taskStatus').value = 'Pendiente';
+  };
+
+  $('exportTasks').onclick = () => {
+    const rows = [
+      ['Tarea', 'Responsable', 'Fecha límite', 'Prioridad', 'Estado'],
+      ...tasks.map(t => [
+        t.title, t.owner, t.due, t.priority,
+        t.done ? 'Completada' : t.status
+      ])
+    ];
+
+    const csv = rows.map(r =>
+      r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')
+    ).join('\r\n');
+
+    download('seguimiento_tareas.csv', '\ufeff' + csv, 'text/csv;charset=utf-8');
+  };
+
+  document.querySelectorAll('[data-prompt]').forEach(b => {
+    b.onclick = () => {
+      $('chatInput').value = b.dataset.prompt;
+      sendMessage();
+    };
+  });
+
+  function addBubble(role, text) {
+    const b = document.createElement('div');
+    b.className = 'bubble ' + role;
+    b.textContent = text;
+    $('chatbox').appendChild(b);
+    $('chatbox').scrollTop = $('chatbox').scrollHeight;
+    return b;
+  }
+
+  async function sendMessage() {
+    if (busy) return;
+
+    const message = $('chatInput').value.trim();
+    if (!message) return;
+
+    busy = true;
+    $('sendChat').disabled = true;
+    $('chatStatus').textContent = 'Gemini está preparando una respuesta…';
+    addBubble('user', message);
+    $('chatInput').value = '';
+    history.push({ role: 'user', parts: [{ text: message }] });
+    const wait = addBubble('ai', 'Analizando…');
+
+    try {
+      const conversation = history.map(item => {
+        const role = item.role === 'model' ? 'AGENTE' : 'USUARIO';
+        return role + ': ' + (item.parts || []).map(p => p.text || '').join('\n');
+      }).join('\n\n');
+
+      const prompt = systemInstruction + '\n\n' + contextText() +
+        '\n\nHISTORIAL DE CONVERSACIÓN:\n' + conversation +
+        '\n\nResponde a la última consulta del usuario.';
+
+      const response = await fetch(CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Error HTTP ' + response.status);
+      }
+
+      const answer = typeof data.text === 'string' ? data.text.trim() : '';
+
+      if (!answer) {
+        throw new Error('El servidor no devolvió texto.');
+      }
+
+      wait.textContent = answer;
+      history.push({ role: 'model', parts: [{ text: answer }] });
+      $('chatStatus').textContent = 'Respuesta recibida.';
+    } catch (err) {
+      wait.textContent = 'No se pudo conectar: ' + err.message;
+      history.pop();
+      $('chatStatus').textContent = 'Conexión no completada.';
+    } finally {
+      busy = false;
+      $('sendChat').disabled = false;
+      $('chatInput').focus();
+    }
+  }
+
+  $('sendChat').onclick = sendMessage;
+
+  $('chatInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  $('clearChat').onclick = () => {
+    history = [];
+    $('chatbox').innerHTML = '';
+    addBubble('ai', 'Conversación reiniciada. Comparte tu consulta o selecciona una acción rápida.');
+    $('chatStatus').textContent = '';
+  };
+
+  $('downloadChat').onclick = () => {
+    const lines = [...$('chatbox').querySelectorAll('.bubble')].map(b =>
+      (b.classList.contains('user') ? 'TÚ' : 'AGENTE') + ':\n' + b.textContent
+    );
+    download('conversacion_agente.txt', lines.join('\n\n'), 'text/plain;charset=utf-8');
+  };
+
+  function download(name, content, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+})();

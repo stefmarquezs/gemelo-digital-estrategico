@@ -58,8 +58,6 @@ textarea{resize:vertical;min-height:86px}
 .chat-input{display:flex;gap:8px;margin-top:10px;align-items:flex-end}
 .chat-input textarea{min-height:45px;max-height:130px}
 .chat-input button{min-height:45px}
-.keyrow{display:flex;gap:8px}
-.keyrow input{flex:1}
 .notice{background:#fff8e9;border:1px solid #f4dfb2;color:#76511a;padding:11px 12px;border-radius:11px;font-size:12px;margin:12px 0}
 .divider{border:0;border-top:1px solid var(--line);margin:16px 0}
 .footer{font-size:11px;color:var(--muted);text-align:center;padding:8px 0 22px}
@@ -174,11 +172,12 @@ textarea{resize:vertical;min-height:86px}
   const CHAT_ENDPOINT = "https://gemelo-digital-estrategico.vercel.app/api/chat";
   const STORAGE_TASKS = 'gemeloDigital.tasks.v1';
   const STORAGE_CONTEXT = 'gemeloDigital.context.v1';
+
   let tasks = [];
   let history = [];
   let busy = false;
 
-  const systemInstruction = `Eres Gemelo Digital Estratégico, un agente gerencial para dirección estratégica, gestión de proyectos y marketing estratégico. Tu tarea central es convertir contexto, notas y acuerdos que el usuario comparta en decisiones pendientes claras, riesgos, KPI y acciones verificables. Trabaja en español claro, profesional, directo y cercano. Separa siempre hechos documentados, interpretaciones o hipótesis y recomendaciones. Usa únicamente el contexto de proyecto introducido por el usuario, las tareas que aparecen en el módulo y los documentos o datos que se te hayan compartido realmente. No afirmes haber leído archivos, métricas, reuniones, correo, calendario, CRM, redes sociales ni sistemas externos que no estén conectados explícitamente. Si falta un dato, escribe [PENDIENTE] o ‘dato no disponible’; pregunta solo lo imprescindible. Nunca inventes cifras, fuentes, responsables, fechas, acuerdos, decisiones ni resultados. Cuando te pidan un brief estratégico de campaña, entrega máximo una página con estos ocho apartados: nombre y contexto; objetivo; público objetivo; insight; mensaje central y propuesta de valor; canales y entregables; indicadores de éxito; información pendiente y próximos pasos. Marca como [PENDIENTE] toda meta, fecha, presupuesto, audiencia, atributo o decisión que no esté documentada; no conviertas propuestas en aprobaciones. Cuando resumas el contexto de un proyecto, identifica objetivo, estado conocido, decisiones pendientes, riesgos, responsables/fechas solo si constan y próximos pasos priorizados. Cuando analices riesgos, incluye riesgo, probabilidad solo si hay base para estimarla, impacto, señal temprana, mitigación y dato que falta. Si la probabilidad no está sustentada, escribe ‘por evaluar’. Cuando propongas o calcules KPI, define nombre, fórmula, fuente, periodo y frecuencia. Para marketing, puedes usar ROAS = ingresos atribuidos / inversión; CPA = inversión / conversiones atribuidas; conversión de etapa = siguiente etapa / etapa anterior. Calcula solo cuando los datos y denominadores estén presentes; aclara atribución, periodo y límites. No confundas ingresos atribuidos con utilidad neta. Los contadores de tareas de la página (total, pendientes, completadas y porcentaje completado) describen únicamente las tareas registradas localmente; no los presentes como resultado del negocio. Antes de cerrar una respuesta, revisa fidelidad a la fuente, cifras, supuestos, vacíos y posibles sesgos de automatización, confirmación y anclaje. La IA prepara el análisis, pero la persona responsable valida y decide. Protege información confidencial y solicita anonimizar datos sensibles. Cuando el usuario pida crear, registrar, añadir o extraer tareas para el módulo de seguimiento, devuelve exclusivamente el JSON indicado en las instrucciones específicas de esa solicitud.`;
+  const systemInstruction = `Eres Gemelo Digital Estratégico, un agente gerencial para dirección estratégica, gestión de proyectos y marketing estratégico. Tu tarea central es convertir contexto, notas y acuerdos que el usuario comparta en decisiones pendientes claras, riesgos, KPI y acciones verificables. Trabaja en español claro, profesional, directo y cercano. Separa hechos documentados, interpretaciones o hipótesis y recomendaciones. No afirmes haber leído archivos, métricas, reuniones, correo, calendario, CRM, redes sociales ni sistemas que no estén conectados explícitamente. Si falta un dato, escribe [PENDIENTE] o 'dato no disponible'. Nunca inventes cifras, fuentes, responsables, fechas, acuerdos ni decisiones. Para briefs estratégicos utiliza los ocho apartados: nombre y contexto; objetivo; público objetivo; insight; mensaje central y propuesta de valor; canales y entregables; indicadores de éxito; información pendiente y próximos pasos. Marca los datos no documentados como [PENDIENTE]. Para riesgos indica impacto, señales tempranas, mitigaciones y datos faltantes; no asignes probabilidades sin evidencia. Para KPI especifica definición, fórmula, fuente y frecuencia. ROAS = ingresos atribuidos / inversión. CPA = inversión / conversiones atribuidas. Conversión = siguiente etapa / etapa anterior. Calcula solo cuando existan los datos necesarios. Los contadores de tareas de esta página solo describen tareas locales, no resultados del negocio. La persona usuaria valida el resultado y toma las decisiones finales. Protege la información confidencial. Cuando el usuario solicite registrar tareas, responde únicamente con el JSON exigido por el modo de registro.`;
 
   function localDateISO() {
     const d = new Date();
@@ -187,8 +186,11 @@ textarea{resize:vertical;min-height:86px}
   }
 
   function readTasks() {
-    try { tasks = JSON.parse(localStorage.getItem(STORAGE_TASKS) || '[]'); }
-    catch { tasks = []; }
+    try {
+      tasks = JSON.parse(localStorage.getItem(STORAGE_TASKS) || '[]');
+    } catch {
+      tasks = [];
+    }
     if (!Array.isArray(tasks)) tasks = [];
     renderTasks();
   }
@@ -197,13 +199,19 @@ textarea{resize:vertical;min-height:86px}
     try {
       localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
       renderTasks();
-    } catch (err) {
+    } catch {
       $('chatStatus').textContent = 'No fue posible guardar las tareas en este navegador.';
     }
   }
 
   function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[c]));
   }
 
   function renderTasks() {
@@ -217,7 +225,19 @@ textarea{resize:vertical;min-height:86px}
     tasks.forEach(t => {
       const el = document.createElement('div');
       el.className = 'task' + (t.done ? ' done' : '');
-      el.innerHTML = `<input type="checkbox" aria-label="Marcar tarea completada" ${t.done ? 'checked' : ''}><div><div class="task-title">${esc(t.title)}</div><div class="task-meta"><span class="pill">${esc(t.owner || 'Por asignar')}</span><span class="pill ${t.priority === 'Alta' ? 'high' : ''}">${esc(t.priority || 'Media')}</span><span class="pill ${t.done ? 'done' : ''}">${t.done ? 'Completada' : esc(t.status || 'Pendiente')}</span>${t.due ? `<span class="pill">Vence: ${esc(t.due)}</span>` : '<span class="pill">Sin fecha</span>'}</div></div><button class="delete" title="Eliminar tarea" aria-label="Eliminar tarea">×</button>`;
+      el.innerHTML = `
+        <input type="checkbox" aria-label="Marcar tarea completada" ${t.done ? 'checked' : ''}>
+        <div>
+          <div class="task-title">${esc(t.title)}</div>
+          <div class="task-meta">
+            <span class="pill">${esc(t.owner || 'Por asignar')}</span>
+            <span class="pill ${t.priority === 'Alta' ? 'high' : ''}">${esc(t.priority || 'Media')}</span>
+            <span class="pill ${t.done ? 'done' : ''}">${t.done ? 'Completada' : esc(t.status || 'Pendiente')}</span>
+            ${t.due ? `<span class="pill">Vence: ${esc(t.due)}</span>` : '<span class="pill">Sin fecha</span>'}
+          </div>
+        </div>
+        <button class="delete" title="Eliminar tarea" aria-label="Eliminar tarea">×</button>
+      `;
 
       el.querySelector('input').addEventListener('change', e => {
         t.done = e.target.checked;
@@ -254,7 +274,6 @@ textarea{resize:vertical;min-height:86px}
 
   function contextText() {
     const c = getContext();
-
     return `CONTEXTO DEL PROYECTO
 Proyecto/cliente: ${c.project || 'No indicado'}
 Responsable principal: ${c.owner || 'No indicado'}
@@ -298,8 +317,7 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
   };
 
   $('sendContext').onclick = () => {
-    const c = contextText();
-    $('chatInput').value = 'Analiza el siguiente contexto y entrega un resumen ejecutivo, decisiones pendientes, riesgos y próximos pasos. No inventes datos.\n\n' + c;
+    $('chatInput').value = 'Analiza el contexto del proyecto y entrega un resumen ejecutivo, decisiones pendientes, riesgos y próximos pasos. No inventes datos.\n\n' + contextText();
     sendMessage();
   };
 
@@ -379,28 +397,26 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
 
     const instructions = taskMode ? `
 
-MODO DE REGISTRO DE TAREAS: el usuario quiere que las tareas queden registradas en el módulo local de esta página. Devuelve ÚNICAMENTE JSON válido, sin Markdown ni texto antes o después, con este formato exacto: {"action":"create_tasks","tasks":[{"title":"nombre breve y accionable","owner":"responsable o vacío","due":"YYYY-MM-DD o vacío","priority":"Alta|Media|Baja","status":"Pendiente|En curso"}],"message":"breve confirmación en español"}.
+MODO DE REGISTRO DE TAREAS: devuelve ÚNICAMENTE JSON válido sin Markdown con este formato: {"action":"create_tasks","tasks":[{"title":"nombre breve","owner":"responsable o vacío","due":"YYYY-MM-DD o vacío","priority":"Alta|Media|Baja","status":"Pendiente|En curso"}],"message":"confirmación breve"}.
 
-Crea solo tareas accionables pertinentes a la petición. No repitas tareas que ya estén registradas. No inventes nombres de personas. Si no hay responsable definido, usa cadena vacía. Usa fecha YYYY-MM-DD solo cuando la fecha esté explícita en la conversación/contexto o sea una conversión clara de un plazo relativo mencionado; si no, deja due vacío. Si el usuario pide número concreto de tareas, respétalo. Si faltan datos, no bloquees la creación: registra los campos disponibles y deja vacíos los desconocidos. La propiedad tasks debe ser un array con al menos una tarea cuando exista material suficiente.` : '';
+Crea solo tareas accionables. No dupliques tareas pendientes existentes. No inventes nombres ni fechas. Si no hay responsable o fecha explícita, usa una cadena vacía. Registra las tareas para las que haya información suficiente.` : '';
 
     return `${systemInstruction}${instructions}
 
-FECHA LOCAL DE HOY: ${localDateISO()}
+FECHA LOCAL: ${localDateISO()}
 
-CONTEXTO ACTUAL DEL PROYECTO Y ESTADO REAL DEL MÓDULO:
+CONTEXTO ACTUAL:
 ${contextText()}
 
-HISTORIAL RECIENTE DE ESTA CONVERSACIÓN:
+HISTORIAL RECIENTE:
 ${recentHistory || 'Sin mensajes anteriores.'}
 
-MENSAJE ACTUAL DEL USUARIO:
+MENSAJE DEL USUARIO:
 ${message}`;
   }
 
   function extractJson(text) {
-    const cleaned = text.trim()
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/, '');
+    const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
 
     try {
       return JSON.parse(cleaned);
@@ -427,38 +443,30 @@ ${message}`;
   function registerTasksFromAI(parsed) {
     if (!parsed || parsed.action !== 'create_tasks' || !Array.isArray(parsed.tasks)) return 0;
 
-    const added = [];
+    let added = 0;
 
     for (const raw of parsed.tasks) {
       if (!raw || typeof raw.title !== 'string' || !raw.title.trim()) continue;
 
       const title = raw.title.trim();
-
-      const duplicate = tasks.some(
-        t => t.title.trim().toLowerCase() === title.toLowerCase() && !t.done
-      );
-
+      const duplicate = tasks.some(t => t.title.trim().toLowerCase() === title.toLowerCase() && !t.done);
       if (duplicate) continue;
 
-      const priority = ['Alta','Media','Baja'].includes(raw.priority) ? raw.priority : 'Media';
-      const status = ['Pendiente','En curso'].includes(raw.status) ? raw.status : 'Pendiente';
-
-      const task = {
+      tasks.unshift({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
         title,
         owner: typeof raw.owner === 'string' ? raw.owner.trim() : '',
         due: validDate(raw.due),
-        priority,
-        status,
+        priority: ['Alta','Media','Baja'].includes(raw.priority) ? raw.priority : 'Media',
+        status: ['Pendiente','En curso'].includes(raw.status) ? raw.status : 'Pendiente',
         done: false
-      };
+      });
 
-      tasks.unshift(task);
-      added.push(task);
+      added++;
     }
 
-    if (added.length) persistTasks();
-    return added.length;
+    if (added) persistTasks();
+    return added;
   }
 
   async function sendMessage() {
@@ -468,24 +476,19 @@ ${message}`;
     if (!message) return;
 
     const taskMode = looksLikeTaskRequest(message);
-
     busy = true;
     $('sendChat').disabled = true;
-    $('chatStatus').textContent = taskMode
-      ? 'El agente está preparando y registrando las tareas…'
-      : 'El agente está preparando una respuesta…';
+    $('chatStatus').textContent = taskMode ? 'Preparando tareas…' : 'Preparando respuesta…';
 
     addBubble('user', message);
     $('chatInput').value = '';
     const wait = addBubble('ai', 'Analizando…');
 
     try {
-      const prompt = buildPrompt(message, taskMode);
-
       const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({ prompt: buildPrompt(message, taskMode) })
       });
 
       let data;
@@ -501,10 +504,7 @@ ${message}`;
       }
 
       const answer = typeof data.text === 'string' ? data.text.trim() : '';
-
-      if (!answer) {
-        throw new Error('El servidor no devolvió texto.');
-      }
+      if (!answer) throw new Error('El servidor no devolvió texto.');
 
       let displayedAnswer = answer;
 
@@ -513,47 +513,25 @@ ${message}`;
 
         if (parsed && parsed.action === 'create_tasks' && Array.isArray(parsed.tasks)) {
           const count = registerTasksFromAI(parsed);
-
-          if (count > 0) {
-            const summary = parsed.tasks
-              .filter(t => t && typeof t.title === 'string')
-              .map(t => `• ${t.title}`)
-              .join('\n');
-
-            displayedAnswer =
-              `${parsed.message || `Registré ${count} tarea(s) en Seguimiento de tareas.`}\n\n` +
-              `${count} tarea(s) añadida(s) al módulo:\n${summary}\n\n` +
-              'Los responsables y fechas que no se especificaron quedaron sin asignar.';
-          } else {
-            displayedAnswer =
-              'No se añadieron tareas nuevas. Puede que ya estén registradas o que la respuesta no incluyera tareas válidas. Revisa el módulo Seguimiento de tareas.';
-          }
+          displayedAnswer = count
+            ? `Se registraron ${count} tareas nuevas en el módulo de seguimiento.\n\n` + parsed.tasks.map(t => '• ' + t.title).join('\n')
+            : 'No se añadieron tareas nuevas. Comprueba si ya estaban registradas o si el agente devolvió tareas válidas.';
         } else {
-          displayedAnswer =
-            'El agente respondió, pero no devolvió el formato necesario para registrar tareas automáticamente. No se modificó el módulo. Intenta pedir: “Registra estas tareas en el seguimiento” y vuelve a intentarlo.\n\nRespuesta del agente:\n' +
-            answer;
+          displayedAnswer = 'El agente no devolvió el formato requerido para registrar automáticamente las tareas. No se modificó el módulo.\n\nRespuesta del agente:\n' + answer;
         }
       }
 
       wait.textContent = displayedAnswer;
-
       history.push(
         { role: 'user', text: message },
         { role: 'assistant', text: displayedAnswer }
       );
 
-      $('chatStatus').textContent = taskMode
-        ? 'Tareas procesadas. Revisa el módulo de seguimiento.'
-        : 'Respuesta recibida.';
+      $('chatStatus').textContent = taskMode ? 'Tareas procesadas. Revisa el seguimiento.' : 'Respuesta recibida.';
 
     } catch (err) {
-      wait.textContent =
-        'No se pudo completar la solicitud: ' +
-        (err?.message || 'Error inesperado.') +
-        '\n\nRevisa que el backend de Vercel esté disponible y que GEMINI_API_KEY esté configurada allí.';
-
+      wait.textContent = 'No se pudo completar la solicitud: ' + (err?.message || 'Error inesperado.') + '\n\nComprueba que el backend de Vercel esté disponible y configurado.';
       $('chatStatus').textContent = 'Conexión no completada.';
-
     } finally {
       busy = false;
       $('sendChat').disabled = false;
@@ -573,12 +551,7 @@ ${message}`;
   $('clearChat').onclick = () => {
     history = [];
     $('chatbox').innerHTML = '';
-
-    addBubble(
-      'ai',
-      'Conversación reiniciada. Comparte tu consulta o selecciona una acción rápida. Las tareas y el contexto guardados no se borrarán.'
-    );
-
+    addBubble('ai', 'Conversación reiniciada. Comparte tu consulta para empezar. Las tareas y el contexto guardados no se borrarán.');
     $('chatStatus').textContent = '';
   };
 
@@ -593,14 +566,11 @@ ${message}`;
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-
     a.href = url;
     a.download = name;
-
     document.body.appendChild(a);
     a.click();
     a.remove();
-
     URL.revokeObjectURL(url);
   }
 })();

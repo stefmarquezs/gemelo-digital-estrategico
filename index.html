@@ -1,4 +1,3 @@
-
 (() => {
   const $ = id => document.getElementById(id);
   const CHAT_ENDPOINT = "https://gemelo-digital-estrategico.vercel.app/api/chat";
@@ -8,7 +7,7 @@
   let history = [];
   let busy = false;
 
-  const systemInstruction = `Eres un agente de IA para dirección estratégica, gestión de proyectos y marketing estratégico. Actúas como asesor ejecutivo y coordinador analítico. Ayudas a centralizar contexto, estructurar reuniones, redactar actas, convertir acuerdos en tareas, detectar riesgos, definir KPI y apoyar decisiones. Habla en español claro, profesional, directo y cercano. Separa hechos, inferencias y recomendaciones. Nunca inventes cifras, fuentes, decisiones, nombres ni acuerdos. Si falta información, dilo. Para KPI incluye definición, fórmula, fuente y frecuencia cuando aplique. No afirmes tener acceso a archivos, reuniones, correo, calendario o sistemas no conectados. Protege la información confidencial. Cuando el usuario pida crear, registrar, añadir o extraer tareas para el módulo de seguimiento, devuelve exclusivamente el JSON indicado en las instrucciones específicas de esa solicitud.`;
+  const systemInstruction = `Eres Gemelo Digital Estratégico, un agente gerencial para dirección estratégica, gestión de proyectos y marketing estratégico. Tu tarea central es convertir contexto, notas y acuerdos que el usuario comparta en decisiones pendientes claras, riesgos, KPI y acciones verificables. Trabaja en español claro, profesional, directo y cercano. Separa siempre hechos documentados, interpretaciones o hipótesis y recomendaciones. Usa únicamente el contexto de proyecto introducido por el usuario, las tareas que aparecen en el módulo y los documentos o datos que se te hayan compartido realmente. No afirmes haber leído archivos, métricas, reuniones, correo, calendario, CRM, redes sociales ni sistemas externos que no estén conectados explícitamente. Si falta un dato, escribe [PENDIENTE] o ‘dato no disponible’; pregunta solo lo imprescindible. Nunca inventes cifras, fuentes, responsables, fechas, acuerdos, decisiones ni resultados. Cuando te pidan un brief estratégico de campaña, entrega máximo una página con estos ocho apartados: nombre y contexto; objetivo; público objetivo; insight; mensaje central y propuesta de valor; canales y entregables; indicadores de éxito; información pendiente y próximos pasos. Marca como [PENDIENTE] toda meta, fecha, presupuesto, audiencia, atributo o decisión que no esté documentada; no conviertas propuestas en aprobaciones. Cuando resumas el contexto de un proyecto, identifica objetivo, estado conocido, decisiones pendientes, riesgos, responsables/fechas solo si constan y próximos pasos priorizados. Cuando analices riesgos, incluye riesgo, probabilidad solo si hay base para estimarla, impacto, señal temprana, mitigación y dato que falta. Si la probabilidad no está sustentada, escribe ‘por evaluar’. Cuando propongas o calcules KPI, define nombre, fórmula, fuente, periodo y frecuencia. Para marketing, puedes usar ROAS = ingresos atribuidos / inversión; CPA = inversión / conversiones atribuidas; conversión de etapa = siguiente etapa / etapa anterior. Calcula solo cuando los datos y denominadores estén presentes; aclara atribución, periodo y límites. No confundas ingresos atribuidos con utilidad neta. Los contadores de tareas de la página (total, pendientes, completadas y porcentaje completado) describen únicamente las tareas registradas localmente; no los presentes como resultado del negocio. Antes de cerrar una respuesta, revisa fidelidad a la fuente, cifras, supuestos, vacíos y posibles sesgos de automatización, confirmación y anclaje. La IA prepara el análisis, pero la persona responsable valida y decide. Protege información confidencial y solicita anonimizar datos sensibles. Cuando el usuario pida crear, registrar, añadir o extraer tareas para el módulo de seguimiento, devuelve exclusivamente el JSON indicado en las instrucciones específicas de esa solicitud.`;
 
   function localDateISO() {
     const d = new Date();
@@ -22,6 +21,7 @@
     } catch {
       tasks = [];
     }
+
     if (!Array.isArray(tasks)) tasks = [];
     renderTasks();
   }
@@ -30,8 +30,9 @@
     try {
       localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
       renderTasks();
-    } catch {
-      $('chatStatus').textContent = 'No fue posible guardar las tareas en este navegador.';
+    } catch (err) {
+      $('chatStatus').textContent =
+        'No fue posible guardar las tareas en este navegador.';
     }
   }
 
@@ -50,14 +51,16 @@
     list.innerHTML = '';
 
     if (!tasks.length) {
-      list.innerHTML = '<div class="empty">Aún no hay tareas. Añade una manualmente o pídele al agente que registre tareas desde el chat.</div>';
+      list.innerHTML =
+        '<div class="empty">Aún no hay tareas. Añade una manualmente o pídele al agente que registre tareas desde el chat.</div>';
     }
 
     tasks.forEach(t => {
       const el = document.createElement('div');
       el.className = 'task' + (t.done ? ' done' : '');
 
-      el.innerHTML = `<input type="checkbox" aria-label="Marcar tarea completada" ${t.done ? 'checked' : ''}>
+      el.innerHTML = `
+        <input type="checkbox" aria-label="Marcar tarea completada" ${t.done ? 'checked' : ''}>
         <div>
           <div class="task-title">${esc(t.title)}</div>
           <div class="task-meta">
@@ -67,7 +70,8 @@
             ${t.due ? `<span class="pill">Vence: ${esc(t.due)}</span>` : '<span class="pill">Sin fecha</span>'}
           </div>
         </div>
-        <button class="delete" title="Eliminar tarea" aria-label="Eliminar tarea">×</button>`;
+        <button class="delete" title="Eliminar tarea" aria-label="Eliminar tarea">×</button>
+      `;
 
       el.querySelector('input').addEventListener('change', e => {
         t.done = e.target.checked;
@@ -89,7 +93,8 @@
     $('totalTasks').textContent = total;
     $('pendingTasks').textContent = total - done;
     $('doneTasks').textContent = done;
-    $('progress').textContent = (total ? Math.round(done / total * 100) : 0) + '%';
+    $('progress').textContent =
+      (total ? Math.round(done / total * 100) : 0) + '%';
   }
 
   function getContext() {
@@ -126,7 +131,10 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
   }
 
   try {
-    const savedContext = JSON.parse(localStorage.getItem(STORAGE_CONTEXT) || 'null');
+    const savedContext = JSON.parse(
+      localStorage.getItem(STORAGE_CONTEXT) || 'null'
+    );
+
     if (savedContext) setContext(savedContext);
   } catch {}
 
@@ -134,10 +142,16 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
 
   $('saveContext').onclick = () => {
     try {
-      localStorage.setItem(STORAGE_CONTEXT, JSON.stringify(getContext()));
-      $('contextStatus').textContent = 'Contexto guardado en este navegador.';
+      localStorage.setItem(
+        STORAGE_CONTEXT,
+        JSON.stringify(getContext())
+      );
+
+      $('contextStatus').textContent =
+        'Contexto guardado en este navegador.';
     } catch {
-      $('contextStatus').textContent = 'No fue posible guardar el contexto en este navegador.';
+      $('contextStatus').textContent =
+        'No fue posible guardar el contexto en este navegador.';
     }
   };
 
@@ -148,16 +162,21 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
   };
 
   $('sendContext').onclick = () => {
-    $('chatInput').value = 'Analiza el siguiente contexto y entrega un resumen ejecutivo, decisiones pendientes, riesgos y próximos pasos. No inventes datos.\n\n' + contextText();
+    const c = contextText();
+
+    $('chatInput').value =
+      'Analiza el siguiente contexto y entrega un resumen ejecutivo, decisiones pendientes, riesgos y próximos pasos. No inventes datos.\n\n' +
+      c;
+
     sendMessage();
   };
 
-  $('exportContext').onclick = () => {
+  $('exportContext').onclick = () =>
     download('contexto_proyecto.txt', contextText(), 'text/plain;charset=utf-8');
-  };
 
   $('addTask').onclick = () => {
     const title = $('taskTitle').value.trim();
+
     if (!title) {
       $('taskTitle').focus();
       return;
@@ -174,6 +193,7 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
     });
 
     persistTasks();
+
     $('taskTitle').value = '';
     $('taskOwner').value = '';
     $('taskDue').value = '';
@@ -192,11 +212,15 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
       ])
     ];
 
-    const csv = rows
-      .map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(','))
-      .join('\r\n');
+    const csv = rows.map(r =>
+      r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')
+    ).join('\r\n');
 
-    download('seguimiento_tareas.csv', '\ufeff' + csv, 'text/csv;charset=utf-8');
+    download(
+      'seguimiento_tareas.csv',
+      '\ufeff' + csv,
+      'text/csv;charset=utf-8'
+    );
   };
 
   document.querySelectorAll('[data-prompt]').forEach(b => {
@@ -210,16 +234,21 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
     const b = document.createElement('div');
     b.className = 'bubble ' + role;
     b.textContent = text;
+
     $('chatbox').appendChild(b);
     $('chatbox').scrollTop = $('chatbox').scrollHeight;
+
     return b;
   }
 
   function looksLikeTaskRequest(message) {
     const m = message.toLowerCase();
 
-    const action = /(crea|crear|créame|creame|registra|registrar|añade|anade|agrega|incorpora|guarda|extrae|convierte|genera|organiza)/i.test(m);
-    const task = /(tareas?|compromisos|pendientes|seguimiento de tareas)/i.test(m);
+    const action =
+      /(crea|crear|créame|creame|registra|registrar|añade|anade|agrega|incorpora|guarda|extrae|convierte|genera|organiza)/i.test(m);
+
+    const task =
+      /(tareas?|compromisos|pendientes|seguimiento de tareas)/i.test(m);
 
     return action && task;
   }
@@ -229,21 +258,13 @@ ${tasks.length ? tasks.map(t => `- [${t.done ? 'Completada' : t.status || 'Pendi
       .map(item => `${item.role === 'user' ? 'USUARIO' : 'AGENTE'}: ${item.text}`)
       .join('\n\n');
 
-    const instructions = taskMode ? `
+    const instructions = taskMode
+      ? `
 
-MODO DE REGISTRO DE TAREAS:
-El usuario quiere que las tareas queden registradas en el módulo local de esta página.
-Devuelve ÚNICAMENTE JSON válido, sin Markdown ni texto antes o después, con este formato exacto:
-{"action":"create_tasks","tasks":[{"title":"nombre breve y accionable","owner":"responsable o vacío","due":"YYYY-MM-DD o vacío","priority":"Alta|Media|Baja","status":"Pendiente|En curso"}],"message":"breve confirmación en español"}.
+MODO DE REGISTRO DE TAREAS: el usuario quiere que las tareas queden registradas en el módulo local de esta página. Devuelve ÚNICAMENTE JSON válido, sin Markdown ni texto antes o después, con este formato exacto: {"action":"create_tasks","tasks":[{"title":"nombre breve y accionable","owner":"responsable o vacío","due":"YYYY-MM-DD o vacío","priority":"Alta|Media|Baja","status":"Pendiente|En curso"}],"message":"breve confirmación en español"}.
 
-Crea solo tareas accionables pertinentes a la petición.
-No repitas tareas que ya estén registradas.
-No inventes nombres de personas.
-Si no hay responsable definido, usa cadena vacía.
-Usa fecha YYYY-MM-DD solo cuando esté explícita o se derive claramente de un plazo indicado; si no, deja due vacío.
-Si el usuario pide un número concreto de tareas, respétalo.
-Si faltan datos, registra los campos disponibles y deja vacíos los desconocidos.
-La propiedad tasks debe contener al menos una tarea cuando exista material suficiente.` : '';
+Crea solo tareas accionables pertinentes a la petición. No repitas tareas que ya estén registradas. No inventes nombres de personas. Si no hay responsable definido, usa cadena vacía. Usa fecha YYYY-MM-DD solo cuando la fecha esté explícita en la conversación/contexto o sea una conversión clara de un plazo relativo mencionado; si no, deja due vacío. Si el usuario pide número concreto de tareas, respétalo. Si faltan datos, no bloquees la creación: registra los campos disponibles y deja vacíos los desconocidos. La propiedad tasks debe ser un array con al menos una tarea cuando exista material suficiente.`
+      : '';
 
     return `${systemInstruction}${instructions}
 
@@ -252,7 +273,7 @@ FECHA LOCAL DE HOY: ${localDateISO()}
 CONTEXTO ACTUAL DEL PROYECTO Y ESTADO REAL DEL MÓDULO:
 ${contextText()}
 
-HISTORIAL RECIENTE:
+HISTORIAL RECIENTE DE ESTA CONVERSACIÓN:
 ${recentHistory || 'Sin mensajes anteriores.'}
 
 MENSAJE ACTUAL DEL USUARIO:
@@ -281,30 +302,49 @@ ${message}`;
   }
 
   function validDate(value) {
-    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return '';
+    }
 
     const d = new Date(value + 'T12:00:00');
 
-    return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value
+    return Number.isNaN(d.getTime()) ||
+      d.toISOString().slice(0, 10) !== value
       ? ''
       : value;
   }
 
   function registerTasksFromAI(parsed) {
-    if (!parsed || parsed.action !== 'create_tasks' || !Array.isArray(parsed.tasks)) return 0;
+    if (
+      !parsed ||
+      parsed.action !== 'create_tasks' ||
+      !Array.isArray(parsed.tasks)
+    ) {
+      return 0;
+    }
 
     const added = [];
 
     for (const raw of parsed.tasks) {
-      if (!raw || typeof raw.title !== 'string' || !raw.title.trim()) continue;
+      if (!raw || typeof raw.title !== 'string' || !raw.title.trim()) {
+        continue;
+      }
 
       const title = raw.title.trim();
-      const duplicate = tasks.some(t => t.title.trim().toLowerCase() === title.toLowerCase() && !t.done);
+
+      const duplicate = tasks.some(
+        t => t.title.trim().toLowerCase() === title.toLowerCase() && !t.done
+      );
 
       if (duplicate) continue;
 
-      const priority = ['Alta', 'Media', 'Baja'].includes(raw.priority) ? raw.priority : 'Media';
-      const status = ['Pendiente', 'En curso'].includes(raw.status) ? raw.status : 'Pendiente';
+      const priority = ['Alta', 'Media', 'Baja'].includes(raw.priority)
+        ? raw.priority
+        : 'Media';
+
+      const status = ['Pendiente', 'En curso'].includes(raw.status)
+        ? raw.status
+        : 'Pendiente';
 
       const task = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
@@ -335,12 +375,14 @@ ${message}`;
 
     busy = true;
     $('sendChat').disabled = true;
+
     $('chatStatus').textContent = taskMode
       ? 'El agente está preparando y registrando las tareas…'
       : 'El agente está preparando una respuesta…';
 
     addBubble('user', message);
     $('chatInput').value = '';
+
     const wait = addBubble('ai', 'Analizando…');
 
     try {
@@ -357,22 +399,33 @@ ${message}`;
       try {
         data = await response.json();
       } catch {
-        throw new Error(`El servidor devolvió una respuesta no válida (HTTP ${response.status}).`);
+        throw new Error(
+          `El servidor devolvió una respuesta no válida (HTTP ${response.status}).`
+        );
       }
 
       if (!response.ok) {
-        throw new Error(data?.error || `Error del servidor: HTTP ${response.status}.`);
+        throw new Error(
+          data?.error || `Error del servidor: HTTP ${response.status}.`
+        );
       }
 
       const answer = typeof data.text === 'string' ? data.text.trim() : '';
-      if (!answer) throw new Error('El servidor no devolvió texto.');
+
+      if (!answer) {
+        throw new Error('El servidor no devolvió texto.');
+      }
 
       let displayedAnswer = answer;
 
       if (taskMode) {
         const parsed = extractJson(answer);
 
-        if (parsed && parsed.action === 'create_tasks' && Array.isArray(parsed.tasks)) {
+        if (
+          parsed &&
+          parsed.action === 'create_tasks' &&
+          Array.isArray(parsed.tasks)
+        ) {
           const count = registerTasksFromAI(parsed);
 
           if (count > 0) {
@@ -381,17 +434,18 @@ ${message}`;
               .map(t => `• ${t.title}`)
               .join('\n');
 
-            displayedAnswer = `${parsed.message || `Registré ${count} tarea(s) en Seguimiento de tareas.`}
-
-${count} tarea(s) añadida(s) al módulo:
-${summary}
-
-Los responsables y fechas no especificados quedaron sin asignar.`;
+            displayedAnswer =
+              `${parsed.message || `Registré ${count} tarea(s) en Seguimiento de tareas.`}\n\n` +
+              `${count} tarea(s) añadida(s) al módulo:\n${summary}\n\n` +
+              'Los responsables y fechas que no se especificaron quedaron sin asignar.';
           } else {
-            displayedAnswer = 'No se añadieron tareas nuevas. Puede que ya estén registradas o que la respuesta no incluyera tareas válidas. Revisa el módulo Seguimiento de tareas.';
+            displayedAnswer =
+              'No se añadieron tareas nuevas. Puede que ya estén registradas o que la respuesta no incluyera tareas válidas. Revisa el módulo Seguimiento de tareas.';
           }
         } else {
-          displayedAnswer = 'El agente respondió, pero no devolvió el formato necesario para registrar tareas automáticamente. No se modificó el módulo. Intenta pedir: “Registra estas tareas en el seguimiento” y vuelve a intentarlo.\n\nRespuesta del agente:\n' + answer;
+          displayedAnswer =
+            'El agente respondió, pero no devolvió el formato necesario para registrar tareas automáticamente. No se modificó el módulo. Intenta pedir: “Registra estas tareas en el seguimiento” y vuelve a intentarlo.\n\nRespuesta del agente:\n' +
+            answer;
         }
       }
 
@@ -405,12 +459,15 @@ Los responsables y fechas no especificados quedaron sin asignar.`;
       $('chatStatus').textContent = taskMode
         ? 'Tareas procesadas. Revisa el módulo de seguimiento.'
         : 'Respuesta recibida.';
+
     } catch (err) {
-      wait.textContent = 'No se pudo completar la solicitud: ' +
+      wait.textContent =
+        'No se pudo completar la solicitud: ' +
         (err?.message || 'Error inesperado.') +
         '\n\nRevisa que el backend de Vercel esté disponible y que GEMINI_API_KEY esté configurada allí.';
 
       $('chatStatus').textContent = 'Conexión no completada.';
+
     } finally {
       busy = false;
       $('sendChat').disabled = false;
@@ -430,15 +487,28 @@ Los responsables y fechas no especificados quedaron sin asignar.`;
   $('clearChat').onclick = () => {
     history = [];
     $('chatbox').innerHTML = '';
-    addBubble('ai', 'Conversación reiniciada. Las tareas y el contexto guardados no se borrarán.');
+
+    addBubble(
+      'ai',
+      'Conversación reiniciada. Comparte tu consulta o selecciona una acción rápida. Las tareas y el contexto guardados no se borrarán.'
+    );
+
     $('chatStatus').textContent = '';
   };
 
   $('downloadChat').onclick = () => {
     const lines = [...$('chatbox').querySelectorAll('.bubble')]
-      .map(b => (b.classList.contains('user') ? 'TÚ' : 'AGENTE') + ':\n' + b.textContent);
+      .map(b =>
+        (b.classList.contains('user') ? 'TÚ' : 'AGENTE') +
+        ':\n' +
+        b.textContent
+      );
 
-    download('conversacion_agente.txt', lines.join('\n\n'), 'text/plain;charset=utf-8');
+    download(
+      'conversacion_agente.txt',
+      lines.join('\n\n'),
+      'text/plain;charset=utf-8'
+    );
   };
 
   function download(name, content, type) {
@@ -448,9 +518,11 @@ Los responsables y fechas no especificados quedaron sin asignar.`;
 
     a.href = url;
     a.download = name;
+
     document.body.appendChild(a);
     a.click();
     a.remove();
+
     URL.revokeObjectURL(url);
   }
 })();

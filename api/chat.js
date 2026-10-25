@@ -1,4 +1,3 @@
-
 module.exports = async function handler(req, res) {
   const allowedOrigin = "https://stefmarquezs.github.io";
 
@@ -11,11 +10,15 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.headers.origin !== allowedOrigin) {
-    return res.status(403).json({ error: "Origen no autorizado." });
+    return res.status(403).json({
+      error: "Origen no autorizado."
+    });
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Método no permitido." });
+    return res.status(405).json({
+      error: "Método no permitido."
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -46,7 +49,7 @@ module.exports = async function handler(req, res) {
 
     for (let attempt = 0; attempt < 3; attempt++) {
       response = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
         {
           method: "POST",
           headers: {
@@ -57,7 +60,11 @@ module.exports = async function handler(req, res) {
             contents: [
               {
                 role: "user",
-                parts: [{ text: prompt }]
+                parts: [
+                  {
+                    text: prompt
+                  }
+                ]
               }
             ]
           })
@@ -84,7 +91,11 @@ module.exports = async function handler(req, res) {
         data?.error?.message ||
         `Gemini respondió con HTTP ${response.status}.`;
 
-      console.error("Gemini API error:", response.status, detail);
+      console.error(
+        "Gemini API error:",
+        response.status,
+        detail
+      );
 
       return res.status(502).json({
         error: `Gemini (${response.status}): ${detail}`
@@ -102,6 +113,7 @@ module.exports = async function handler(req, res) {
     }
 
     return res.status(200).json({ text });
+
   } catch (error) {
     console.error("Error al conectar con Gemini:", error);
 

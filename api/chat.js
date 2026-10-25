@@ -60,7 +60,11 @@ module.exports = async function handler(req, res) {
             contents: [
               {
                 role: "user",
-                parts: [{ text: prompt }]
+                parts: [
+                  {
+                    text: prompt
+                  }
+                ]
               }
             ]
           })
@@ -69,7 +73,9 @@ module.exports = async function handler(req, res) {
 
       data = await response.json().catch(() => ({}));
 
-      const retryable = [429, 500, 502, 503, 504].includes(response.status);
+      const retryable = [429, 500, 502, 503, 504].includes(
+        response.status
+      );
 
       if (response.ok || !retryable || attempt === 2) {
         break;
@@ -85,7 +91,11 @@ module.exports = async function handler(req, res) {
         data?.error?.message ||
         `Gemini respondió con HTTP ${response.status}.`;
 
-      console.error("Gemini API error:", response.status, detail);
+      console.error(
+        "Gemini API error:",
+        response.status,
+        detail
+      );
 
       return res.status(502).json({
         error: `Gemini (${response.status}): ${detail}`
